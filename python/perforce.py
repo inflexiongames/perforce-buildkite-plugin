@@ -277,15 +277,22 @@ class P4Repo:
         self._setup_client()
         self.revert()
         sync_files = ['%s%s' % (path, revision or '') for path in self.sync_paths]
-        result = self.perforce.run_sync(
-            '--parallel=threads=%s' % self.parallel,
-            *sync_files,
-            handler=SyncOutput(self.perforce.logger),
-        )
-        if result:
-            self.perforce.logger.info("Synced %s files (%s)" % (
-                result[0]['totalFileCount'], sizeof_fmt(int(result[0]['totalFileSize']))))
-        return result
+        attempts = 1
+        while attempts <= 2:
+            try:
+                result = self.perforce.run_sync(
+                    '--parallel=threads=%s' % self.parallel,
+                    *sync_files,
+                    handler=SyncOutput(self.perforce.logger),
+                )
+                if result:
+                    self.perforce.logger.info("Synced %s files (%s)" % (
+                        result[0]['totalFileCount'], sizeof_fmt(int(result[0]['totalFileSize']))))
+                return result
+            except P4Exception as e:
+                self.perforce.logger.warning(f"Got an exception on attempt {attempts}: {e}")
+                attempts += 1
+        raise Exception(f"Unable to sync in {attempts} tries")
 
     def revert(self):
         """Revert any pending changes in the workspace"""
@@ -380,7 +387,7 @@ class SyncOutput(OutputHandler):
                 self.logger.info("%(depotFile)s#%(rev)s %(action)s" % stat)
             elif self.sync_count % 1000 == 0:
                 # Syncing many files, print one message for every 1000 files to reduce log spam
-                self.logger.info("Synced %d files..." % self.sync_count)
+                self.logger.info("%d files to sync..." % self.sync_count)
         return OutputHandler.REPORT
 
 
