@@ -1,8 +1,10 @@
 """
 Manage a perforce workspace in the context of a build machine
 """
+from functools import wraps
 import os
 import re
+import signal
 import socket
 import logging
 import sys
@@ -16,7 +18,7 @@ from P4 import P4, P4Exception, OutputHandler # pylint: disable=import-error
 class P4Repo:
     """A class for manipulating perforce workspaces"""
     def __init__(self, root=None, view=None, stream=None, sync=None,
-                 client_options=None, client_type=None, parallel=1, fingerprint=None):
+                 client_options=None, client_type=None, parallel=1, fingerprint=None, interrupted_flag=None):
         """
         root: Directory in which to create the client workspace
         view: Client workspace mapping
@@ -40,6 +42,8 @@ class P4Repo:
         self.created_client = False
         self.patchfile = os.path.join(self.root, 'patched.json')
         self.p4config = os.path.join(self.root, 'p4config')
+        self.interrupted_flag = interrupted_flag
+        self.historical_interruption = False
 
         self.perforce = P4()
         self.perforce.disable_tmp_cleanup() # Required to use multiple P4 connections in parallel safely
@@ -219,6 +223,20 @@ class P4Repo:
         with open(self.patchfile, 'w') as outfile:
             json.dump(content, outfile)
 
+    def _write_interrupted(self):
+        """Write a marker to track when the sync process has been interrupted, potentially dirtying the agent"""
+        self.perforce.logger.info("Saving interruption flag.")
+        if os.path.exists(self.interrupted_flag): # If there was already an interruption flag on this agent when we started, remember that so _delete_interrupted doesn't clear it
+            self.historical_interruption = True
+        with open(self.interrupted_flag, 'w') as outfile:
+            outfile.write("dirty")
+
+    def _delete_interrupted(self):
+        """Remove the interruption marker, tracking that the sync process concluded as expected."""
+        self.perforce.logger.info("Removing interruption flag.")
+        if not (self.historical_interruption): # If there was already an interruption flag on this agent when we started, don't delete it.
+            os.remove(self.interrupted_flag)
+
     def clean(self):
         """ Perform a p4clean on the workspace to
             remove added and restore deleted files
@@ -274,6 +292,7 @@ class P4Repo:
 
     def sync(self, revision=None):
         """Sync the workspace"""
+        self._write_interrupted()
         self._setup_client()
         self.revert()
         sync_files = ['%s%s' % (path, revision or '') for path in self.sync_paths]
@@ -285,6 +304,7 @@ class P4Repo:
         if result:
             self.perforce.logger.info("Synced %s files (%s)" % (
                 result[0]['totalFileCount'], sizeof_fmt(int(result[0]['totalFileSize']))))
+        self._delete_interrupted()
         return result
 
     def revert(self):
@@ -327,6 +347,7 @@ class P4Repo:
 
     def p4print_unshelve(self, changelist):
         """Unshelve a pending change by p4printing the contents into a file"""
+        self._write_interrupted()
         self._setup_client()
 
         changeinfo = self.perforce.run_describe('-S', changelist)
@@ -363,6 +384,7 @@ class P4Repo:
         self._write_patched(synced_patched_files)
 
         self.run_parallel_cmds(cmds, max_parallel=int(self.parallel))
+        self._delete_interrupted()
 
 
 class SyncOutput(OutputHandler):

@@ -30,3 +30,5 @@ configuration:
       type: string
     view:
       type: string
+    interrupted_flag:
+      type: string
