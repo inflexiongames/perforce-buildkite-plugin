@@ -70,6 +70,7 @@ def get_config():
     if 'BUILDKITE_PLUGIN_PERFORCE_ROOT' in os.environ and not __LOCAL_RUN__:
         raise Exception("Custom P4 root is for use in unit tests only")
     conf['root'] = os.environ.get('BUILDKITE_PLUGIN_PERFORCE_ROOT') or os.environ.get('BUILDKITE_BUILD_CHECKOUT_PATH')
+    conf['interrupted_flag'] = os.environ.get('BUILDKITE_PLUGIN_PERFORCE_INTERRUPTED_FLAG') or os.path.join(os.environ.get('BUILDKITE_BUILD_CHECKOUT_PATH'),'p4interrupted.flag')
 
     # Coerce view into pairs of [depot client] paths
     view_parts = conf['view'].split(' ')
