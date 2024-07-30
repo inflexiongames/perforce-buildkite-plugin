@@ -1,10 +1,8 @@
 """
 Manage a perforce workspace in the context of a build machine
 """
-from functools import wraps
 import os
 import re
-import signal
 import socket
 import logging
 import sys
