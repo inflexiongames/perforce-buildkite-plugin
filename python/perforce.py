@@ -355,26 +355,29 @@ class P4Repo:
 
         if 'depotFile' not in changeinfo:
             raise Exception('Changelist %s does not contain any shelved files' % changelist)
+
+        sync_prefixes = [prefix.rstrip('.') for prefix in self.sync_paths]
+        self.perforce.logger.info("Filtering changelist against the "
+                                  "following sync paths: %s", sync_prefixes)
+
         depotfiles = changeinfo['depotFile']
 
         # Filter out files with exclusive locking
         filtered_files = []
         exclusive_files = []
         for i in range(len(depotfiles)):
-            if "+l" in changeinfo["type"][i]:
-                exclusive_files.append(depotfiles[i])
-                continue
-            filtered_files.append(depotfiles[i])
+            if (any(depotfiles[i].startswith(prefix)
+                    for prefix in sync_prefixes)):
+                if "+l" in changeinfo["type"][i]:
+                    exclusive_files.append(depotfiles[i])
+                    continue
+                filtered_files.append(depotfiles[i])
 
         cmds = []
-        sync_prefixes = [prefix.rstrip('.') for prefix in self.sync_paths]
 
         if filtered_files:
             # Run unshelve on non-exclusive files. Exclusive locking files
             # are p4 printed instead.
-            # Filter again against sync prefixes
-            filtered_files = [f for f in filtered_files if any(
-                f.startswith(prefix) for prefix in sync_prefixes)]
             cmds.append(('unshelve', '-s', changelist, filtered_files))
 
         if exclusive_files:
@@ -388,14 +391,11 @@ class P4Repo:
             synced_patched_files = []
 
             for depotfile, localfile in depot_to_local.items():
-                if any(depotfile.startswith(prefix) for prefix in sync_prefixes):
-                    if os.path.isfile(localfile):
-                        os.chmod(localfile, stat.S_IWRITE)
-                        os.unlink(localfile)
-                    cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
-                    synced_patched_files.append(localfile)
-                else:
-                    self.perforce.logger.info('file doesnt have matching prefix: ' + depotfile)
+                if os.path.isfile(localfile):
+                    os.chmod(localfile, stat.S_IWRITE)
+                    os.unlink(localfile)
+                cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
+                synced_patched_files.append(localfile)
 
             # Flag synced shelved files as modified
             self._write_patched(synced_patched_files)
