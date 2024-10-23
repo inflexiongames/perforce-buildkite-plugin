@@ -33,7 +33,7 @@ class P4Repo:
         self.sync_paths = sync or ['//...']
         assert isinstance(self.sync_paths, list)
         self.client_options = client_options or ''
-        self.client_type = client_type or 'writeable'
+        self.client_type = client_type or 'partitioned'
         self.parallel = parallel
         self.fingerprint = fingerprint or ''
 
