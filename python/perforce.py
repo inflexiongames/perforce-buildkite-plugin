@@ -169,7 +169,7 @@ class P4Repo:
             if prev_clientname != clientname:
                 need_full_clean = True
                 bless_version_file = os.path.join(self.root, "bless.version")
-                if self.client_type == "writeable":
+                if "readonly" not in self.client_type:
                     self.perforce.logger.warning("p4config last client was %s, flushing workspace to match" % prev_clientname)
                     self._flush_to_previous_client(client, prev_clientname)
                     need_full_clean = False
