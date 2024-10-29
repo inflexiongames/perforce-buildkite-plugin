@@ -228,6 +228,8 @@ class P4Repo:
             self.historical_interruption = True
         with open(self.interrupted_flag, 'w') as outfile:
             outfile.write("dirty")
+        with open(os.path.join(self.root, '.p4ignore'), 'a') as ignore_file:
+            ignore_file.write("p4interrupted.flag")
 
     def _delete_interrupted(self):
         """Remove the interruption marker, tracking that the sync process concluded as expected."""
