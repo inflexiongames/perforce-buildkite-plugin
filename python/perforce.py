@@ -162,14 +162,14 @@ class P4Repo:
 
         if os.path.isfile(self.p4config):
             with open(self.p4config) as infile:
-                prev_clientname = next(line.split('=', 1)[-1]
-                    for line in infile.read().splitlines() # removes \n
-                    if line.startswith('P4CLIENT='))
+                prev_clientname = next(line.split('=', 1)[-1] for
+                                       line in infile.read().splitlines() if  # removes \n
+                                       line.startswith('P4CLIENT='))
             # p4 flush @client is only supported for writeable
             if prev_clientname != clientname:
                 need_full_clean = True
                 bless_version_file = os.path.join(self.root, "bless.version")
-                if "readonly" not in self.client_type:
+                if self.client_type == "writeable":
                     self.perforce.logger.warning("p4config last client was %s, flushing workspace to match" % prev_clientname)
                     self._flush_to_previous_client(client, prev_clientname)
                     need_full_clean = False
@@ -184,7 +184,7 @@ class P4Repo:
                             need_full_clean = False
                         else:
                             self.perforce.logger.warning("invalid bless.version format: %s. Expected format is stream@CL, e.g. //depot/main@123456" % blessed_version_string)
-                
+
                 if need_full_clean:
                     self.perforce.logger.warning("cleaning workspace to ensure have table is correctly populated. Due to lack of bless.version file in root and mismatched with previous clientname %s" % prev_clientname)
                     self.perforce.run_clean(['-a', '-d', '//...'])
