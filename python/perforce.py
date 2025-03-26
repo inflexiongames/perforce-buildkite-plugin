@@ -234,8 +234,9 @@ class P4Repo:
     def _delete_interrupted(self):
         """Remove the interruption marker, tracking that the sync process concluded as expected."""
         self.perforce.logger.info("Removing interruption flag.")
-        if not (self.historical_interruption): # If there was already an interruption flag on this agent when we started, don't delete it.
-            os.remove(self.interrupted_flag)
+        if not (self.historical_interruption):  # If there was already an interruption flag on this agent when we started, don't delete it.
+            if os.path.exists(self.interrupted_flag):
+                os.remove(self.interrupted_flag)
 
     def clean(self):
         """ Perform a p4clean on the workspace to
