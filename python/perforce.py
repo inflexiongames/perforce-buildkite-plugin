@@ -11,7 +11,8 @@ import json
 
 
 # Recommended reference: https://www.perforce.com/manuals/p4python/p4python.pdf
-from P4 import P4, P4Exception, OutputHandler # pylint: disable=import-error
+from P4 import P4, P4Exception, OutputHandler  # pylint: disable=import-error
+
 
 class P4Repo:
     """A class for manipulating perforce workspaces"""
@@ -44,7 +45,7 @@ class P4Repo:
         self.historical_interruption = False
 
         self.perforce = P4()
-        self.perforce.disable_tmp_cleanup() # Required to use multiple P4 connections in parallel safely
+        self.perforce.disable_tmp_cleanup()  # Required to use multiple P4 connections in parallel safely
         self.perforce.exception_level = 1  # Only errors are raised as exceptions
         logger = logging.getLogger("p4python")
         logger.setLevel(logging.INFO)
@@ -75,7 +76,8 @@ class P4Repo:
 
     def _get_clientname(self):
         """Get unique clientname for this host and location on disk"""
-        clientname = 'bk-p4-%s-%s' % (os.environ.get('BUILDKITE_AGENT_NAME', socket.gethostname()), os.path.basename(self.root))
+        clientname = 'bk-p4-%s-%s' % (os.environ.get('BUILDKITE_AGENT_NAME', socket.gethostname()),
+                                      os.path.basename(self.root))
         return re.sub(r'\W', '-', clientname)
 
     def _localize_view(self, view):
@@ -95,7 +97,8 @@ class P4Repo:
         prev_client = self.perforce.fetch_client(prev_clientname)
         stream_switch = self.stream and prev_client._stream != self.stream
         if stream_switch:
-            self.perforce.logger.info("previous client stream %s does not match %s, switching stream temporarily to flush" % (prev_client._stream, self.stream))
+            self.perforce.logger.info("previous client stream %s does not match %s, "
+                                      "switching stream temporarily to flush" % (prev_client._stream, self.stream))
             current_client._stream = prev_client._stream
             self.perforce.save_client(current_client)
 
@@ -109,12 +112,13 @@ class P4Repo:
     def _flush_to_stream_and_changelist(self, current_client, prev_client_stream, prev_client_changelist):
         """
         Flush a new client to match existing workspace data from a previous client, using the CL and stream.
-        
+
         This is needed for partitioned and read-only workspaces that can't directly use another client for flushing.
         """
         stream_switch = self.stream and prev_client_stream != self.stream
         if stream_switch:
-            self.perforce.logger.info("previous client stream %s does not match %s, switching stream temporarily to flush" % (prev_client_stream, self.stream))
+            self.perforce.logger.info("previous client stream %s does not match %s, "
+                                      "switching stream temporarily to flush" % (prev_client_stream, self.stream))
             current_client._stream = prev_client_stream
             self.perforce.save_client(current_client)
 
@@ -149,7 +153,7 @@ class P4Repo:
         # unless overidden, overwrite writeable-but-unopened files
         # (e.g. interrupted syncs, artefacts that have been checked-in)
         client._options = self.client_options + ' clobber'
-        
+
         # revert changes in client before saving to avoid an error if files are still open in client
         try:
             self.perforce.run_revert('-w', '//...')
@@ -170,7 +174,8 @@ class P4Repo:
                 need_full_clean = True
                 bless_version_file = os.path.join(self.root, "bless.version")
                 if self.client_type == "writeable":
-                    self.perforce.logger.warning("p4config last client was %s, flushing workspace to match" % prev_clientname)
+                    self.perforce.logger.warning("p4config last client was %s, "
+                                                 "flushing workspace to match" % prev_clientname)
                     self._flush_to_previous_client(client, prev_clientname)
                     need_full_clean = False
                 elif os.path.isfile(bless_version_file):
@@ -179,18 +184,25 @@ class P4Repo:
                         blessed_version_string = file.read().strip()
                         blessed_stream_and_version = blessed_version_string.split('@')
                         if len(blessed_stream_and_version) == 2:
-                            self.perforce.logger.warning("flushing workspace to previously blessed version: stream %s at changelist %s" % (blessed_stream_and_version[0], blessed_stream_and_version[1]))
-                            self._flush_to_stream_and_changelist(client, blessed_stream_and_version[0], blessed_stream_and_version[1])
+                            self.perforce.logger.warning("flushing workspace to previously blessed version: "
+                                                         "stream %s at changelist %s" %
+                                                         (blessed_stream_and_version[0], blessed_stream_and_version[1]))
+                            self._flush_to_stream_and_changelist(
+                                client, blessed_stream_and_version[0], blessed_stream_and_version[1])
                             need_full_clean = False
                         else:
-                            self.perforce.logger.warning("invalid bless.version format: %s. Expected format is stream@CL, e.g. //depot/main@123456" % blessed_version_string)
+                            self.perforce.logger.warning("invalid bless.version format: %s. Expected format is "
+                                                         "stream@CL, e.g. //depot/main@123456" % blessed_version_string)
 
                 if need_full_clean:
-                    self.perforce.logger.warning("cleaning workspace to ensure have table is correctly populated. Due to lack of bless.version file in root and mismatched with previous clientname %s" % prev_clientname)
+                    self.perforce.logger.warning("cleaning workspace to ensure have table is correctly populated. "
+                                                 "Due to lack of bless.version file in root and mismatched with "
+                                                 "previous clientname %s" % prev_clientname)
                     self.perforce.run_clean(['-a', '-d', '//...'])
 
-        elif 'Update' in client: # client was accessed previously
-            self.perforce.logger.warning("p4config missing for previously accessed client workspace. flushing to revision zero")
+        elif 'Update' in client:  # client was accessed previously
+            self.perforce.logger.warning("p4config missing for previously accessed client workspace. "
+                                         "flushing to revision zero")
             self.perforce.run_flush(['//...@0'])
 
         self._write_p4config()
@@ -217,14 +229,16 @@ class P4Repo:
 
     def _write_patched(self, files):
         """Write a marker to track which files have been modified in the workspace"""
-        content = list(set(files + self._read_patched())) # Combine and deduplicate
+        content = list(set(files + self._read_patched()))  # Combine and deduplicate
         with open(self.patchfile, 'w') as outfile:
             json.dump(content, outfile)
 
     def _write_interrupted(self):
         """Write a marker to track when the sync process has been interrupted, potentially dirtying the agent"""
         self.perforce.logger.info("Saving interruption flag.")
-        if os.path.exists(self.interrupted_flag): # If there was already an interruption flag on this agent when we started, remember that so _delete_interrupted doesn't clear it
+        # If there was already an interruption flag on this agent when we
+        # started, remember that so _delete_interrupted doesn't clear it
+        if os.path.exists(self.interrupted_flag):
             self.historical_interruption = True
         with open(self.interrupted_flag, 'w') as outfile:
             outfile.write("dirty")
@@ -234,7 +248,8 @@ class P4Repo:
     def _delete_interrupted(self):
         """Remove the interruption marker, tracking that the sync process concluded as expected."""
         self.perforce.logger.info("Removing interruption flag.")
-        if not (self.historical_interruption):  # If there was already an interruption flag on this agent when we started, don't delete it.
+        # If there was already an interruption flag on this agent when we started, don't delete it.
+        if not (self.historical_interruption):
             if os.path.exists(self.interrupted_flag):
                 os.remove(self.interrupted_flag)
 
@@ -272,7 +287,7 @@ class P4Repo:
                 # Resolve revision directly for automatic labels
                 # Improves performance when label is significantly behind HEAD
                 labelinfo = self.perforce.fetch_label(stripped_revision)
-                 # Revision field is optional
+                # Revision field is optional
                 revision = labelinfo.get('Revision') or revision
             except P4Exception:
                 # revision may be clientname, datespec or something else
@@ -284,7 +299,7 @@ class P4Repo:
             '-m', '1', '-s', 'submitted', revision
         ])
         if not changeinfo:
-            return None # Revision spec had no submitted changes
+            return None  # Revision spec had no submitted changes
         return changeinfo[0]['change']
 
     def description(self, changelist):
@@ -317,7 +332,7 @@ class P4Repo:
             self.perforce.run_clean(patched)
             os.remove(self.patchfile)
 
-    def run_parallel_cmds(self, cmds, max_parallel=20, max_attempts = 5):
+    def run_parallel_cmds(self, cmds, max_parallel=20, max_attempts=5):
         def run(*args):
             """Acquire new connection and run p4 cmd"""
             perforce = P4()
@@ -359,49 +374,32 @@ class P4Repo:
         if 'depotFile' not in changeinfo:
             raise Exception('Changelist %s does not contain any shelved files' % changelist)
 
+        # Turn sync spec into a prefix to filter out unwanted files
+        # e.g. //my-depot/dir/... => //my-depot/dir/
+
         sync_prefixes = [prefix.rstrip('.') for prefix in self.sync_paths]
         self.perforce.logger.info("Filtering changelist against the "
                                   "following sync paths: %s", sync_prefixes)
 
-        depotfiles = changeinfo['depotFile']
-
-        # Filter out files with exclusive locking
-        filtered_files = []
-        exclusive_files = []
-        for i in range(len(depotfiles)):
-            if (any(depotfiles[i].startswith(prefix)
-                    for prefix in sync_prefixes)):
-                if "+l" in changeinfo["type"][i]:
-                    exclusive_files.append(depotfiles[i])
-                    continue
-                filtered_files.append(depotfiles[i])
+        whereinfo = self.perforce.run_where(changeinfo['depotFile'])
+        depot_to_local = {item['depotFile']: item['path'] for item in whereinfo}
 
         cmds = []
+        synced_patched_files = []
 
-        if filtered_files:
-            # Run unshelve on non-exclusive files. Exclusive locking files
-            # are p4 printed instead.
-            cmds.append(('unshelve', '-s', changelist, filtered_files))
+        for depotfile, localfile in depot_to_local.items():
+            if not (any(depotfile.startswith(prefix)
+                    for prefix in sync_prefixes)):
+                continue
 
-        if exclusive_files:
-            whereinfo = self.perforce.run_where(exclusive_files)
+            if os.path.isfile(localfile):
+                os.chmod(localfile, stat.S_IWRITE)
+                os.unlink(localfile)
+            cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
+            synced_patched_files.append(localfile)
 
-            depot_to_local = {item['depotFile']: item['path'] for item in whereinfo}
-
-            # Turn sync spec into a prefix to filter out unwanted files
-            # e.g. //my-depot/dir/... => //my-depot/dir/
-
-            synced_patched_files = []
-
-            for depotfile, localfile in depot_to_local.items():
-                if os.path.isfile(localfile):
-                    os.chmod(localfile, stat.S_IWRITE)
-                    os.unlink(localfile)
-                cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
-                synced_patched_files.append(localfile)
-
-            # Flag synced shelved files as modified
-            self._write_patched(synced_patched_files)
+        # Flag synced shelved files as modified
+        self._write_patched(synced_patched_files)
 
         self.run_parallel_cmds(cmds, max_parallel=int(self.parallel))
         self._delete_interrupted()
@@ -416,7 +414,7 @@ class SyncOutput(OutputHandler):
 
     def outputStat(self, stat):
         if 'depotFile' in stat:
-            self.sync_count  += 1
+            self.sync_count += 1
             if self.sync_count < 1000:
                 # Normal, verbose logging of synced file
                 self.logger.info("%(depotFile)s#%(rev)s %(action)s" % stat)

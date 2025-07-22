@@ -1,10 +1,12 @@
 """
 Entrypoint for cleanup hook pre-exit
 """
+
 import os
 
 from perforce import P4Repo
-from buildkite import (get_env, get_config)
+from buildkite import get_env, get_config
+
 
 def main():
     """Main"""
