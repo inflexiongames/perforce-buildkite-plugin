@@ -374,49 +374,32 @@ class P4Repo:
         if 'depotFile' not in changeinfo:
             raise Exception('Changelist %s does not contain any shelved files' % changelist)
 
+        # Turn sync spec into a prefix to filter out unwanted files
+        # e.g. //my-depot/dir/... => //my-depot/dir/
+
         sync_prefixes = [prefix.rstrip('.') for prefix in self.sync_paths]
         self.perforce.logger.info("Filtering changelist against the "
                                   "following sync paths: %s", sync_prefixes)
 
-        depotfiles = changeinfo['depotFile']
-
-        # Filter out files with exclusive locking
-        filtered_files = []
-        exclusive_files = []
-        for i in range(len(depotfiles)):
-            if (any(depotfiles[i].startswith(prefix)
-                    for prefix in sync_prefixes)):
-                if "+l" in changeinfo["type"][i]:
-                    exclusive_files.append(depotfiles[i])
-                    continue
-                filtered_files.append(depotfiles[i])
+        whereinfo = self.perforce.run_where(changeinfo['depotFile'])
+        depot_to_local = {item['depotFile']: item['path'] for item in whereinfo}
 
         cmds = []
+        synced_patched_files = []
 
-        if filtered_files:
-            # Run unshelve on non-exclusive files. Exclusive locking files
-            # are p4 printed instead.
-            cmds.append(('unshelve', '-s', changelist, filtered_files))
+        for depotfile, localfile in depot_to_local.items():
+            if not (any(depotfile.startswith(prefix)
+                    for prefix in sync_prefixes)):
+                continue
 
-        if exclusive_files:
-            whereinfo = self.perforce.run_where(exclusive_files)
+            if os.path.isfile(localfile):
+                os.chmod(localfile, stat.S_IWRITE)
+                os.unlink(localfile)
+            cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
+            synced_patched_files.append(localfile)
 
-            depot_to_local = {item['depotFile']: item['path'] for item in whereinfo}
-
-            # Turn sync spec into a prefix to filter out unwanted files
-            # e.g. //my-depot/dir/... => //my-depot/dir/
-
-            synced_patched_files = []
-
-            for depotfile, localfile in depot_to_local.items():
-                if os.path.isfile(localfile):
-                    os.chmod(localfile, stat.S_IWRITE)
-                    os.unlink(localfile)
-                cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
-                synced_patched_files.append(localfile)
-
-            # Flag synced shelved files as modified
-            self._write_patched(synced_patched_files)
+        # Flag synced shelved files as modified
+        self._write_patched(synced_patched_files)
 
         self.run_parallel_cmds(cmds, max_parallel=int(self.parallel))
         self._delete_interrupted()
