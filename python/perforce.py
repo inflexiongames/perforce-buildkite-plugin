@@ -361,42 +361,43 @@ class P4Repo:
             self.perforce.logger.info("About to retry commands: " + json.dumps(retry))
             self.run_parallel_cmds(retry, max_parallel, max_attempts - 1)
 
-    def p4print_unshelve(self, changelist):
+    def p4print_unshelve(self, changelists):
         """Unshelve a pending change by p4printing the contents into a file"""
         self._write_interrupted()
         self._setup_client()
 
-        changeinfo = self.perforce.run_describe('-S', changelist)
-        if not changeinfo:
-            raise Exception('Changelist %s does not contain any shelved files.' % changelist)
-        changeinfo = changeinfo[0]
-
-        if 'depotFile' not in changeinfo:
-            raise Exception('Changelist %s does not contain any shelved files' % changelist)
-
-        # Turn sync spec into a prefix to filter out unwanted files
-        # e.g. //my-depot/dir/... => //my-depot/dir/
-
-        sync_prefixes = [prefix.rstrip('.') for prefix in self.sync_paths]
-        self.perforce.logger.info("Filtering changelist against the "
-                                  "following sync paths: %s", sync_prefixes)
-
-        whereinfo = self.perforce.run_where(changeinfo['depotFile'])
-        depot_to_local = {item['depotFile']: item['path'] for item in whereinfo}
-
-        cmds = []
         synced_patched_files = []
+        cmds = []
 
-        for depotfile, localfile in depot_to_local.items():
-            if not (any(depotfile.startswith(prefix)
-                    for prefix in sync_prefixes)):
-                continue
+        for changelist in changelists:
+            changeinfo = self.perforce.run_describe('-S', changelist)
+            if not changeinfo:
+                raise Exception('Changelist %s does not contain any shelved files.' % changelist)
+            changeinfo = changeinfo[0]
 
-            if os.path.isfile(localfile):
-                os.chmod(localfile, stat.S_IWRITE)
-                os.unlink(localfile)
-            cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
-            synced_patched_files.append(localfile)
+            if 'depotFile' not in changeinfo:
+                raise Exception('Changelist %s does not contain any shelved files' % changelist)
+
+            # Turn sync spec into a prefix to filter out unwanted files
+            # e.g. //my-depot/dir/... => //my-depot/dir/
+
+            sync_prefixes = [prefix.rstrip('.') for prefix in self.sync_paths]
+            self.perforce.logger.info("Filtering changelist against the "
+                                      "following sync paths: %s", sync_prefixes)
+
+            whereinfo = self.perforce.run_where(changeinfo['depotFile'])
+            depot_to_local = {item['depotFile']: item['path'] for item in whereinfo}
+
+            for depotfile, localfile in depot_to_local.items():
+                if not (any(depotfile.startswith(prefix)
+                        for prefix in sync_prefixes)):
+                    continue
+
+                if os.path.isfile(localfile):
+                    os.chmod(localfile, stat.S_IWRITE)
+                    os.unlink(localfile)
+                cmds.append(('print', '-o', localfile, '%s@=%s' % (depotfile, changelist)))
+                synced_patched_files.append(localfile)
 
         # Flag synced shelved files as modified
         self._write_patched(synced_patched_files)
