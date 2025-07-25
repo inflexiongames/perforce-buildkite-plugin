@@ -24,7 +24,9 @@ def main():
 
     user_changelist = get_users_changelist()
     if user_changelist:
-        repo.p4print_unshelve(user_changelist)
+        additional_changelists = os.environ.get("ADDITIONAL_SHELVES", "").strip(",").split(",")
+        changelists = [user_changelist] + additional_changelists if additional_changelists else [user_changelist]
+        repo.p4print_unshelve(changelists)
 
     description = repo.description(
         # Prefer users change description over latest submitted change
